@@ -5,12 +5,22 @@ export interface BoundingBox {
   box: number[]
 }
 
+export interface TaskTiming {
+  queued_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  duration_ms?: number | null
+}
+
 export interface ImageOCRResponse {
   success: boolean
   text: string
   raw_text: string
   boxes: BoundingBox[]
   image_dims?: { w: number; h: number }
+  task_id?: string | null
+  timing?: TaskTiming | null
+  duration_ms?: number | null
 }
 
 export interface TaskCreateResponse {
@@ -51,6 +61,7 @@ export interface TaskStatusResponse {
   error_message?: string | null
   result?: TaskResult | null
   progress?: TaskProgress | null
+  timing?: TaskTiming | null
 }
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8001'

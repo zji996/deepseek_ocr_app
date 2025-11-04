@@ -29,3 +29,4 @@ Commits use concise sentence-case summaries (e.g., `Update README.md with new co
 - **前端体验** – 控制台拆分为 `ImageOcrPanel`/`PdfTaskPanel`/`TaskLookupPanel` 三个功能块：PDF 状态以 1 s 轮询自动刷新（移除手动刷新按钮），任务完成后仅提供 ZIP 下载；任务 ID 查询区域支持任意任务实时追踪。
 - **Worker 稳定性** – Celery PDF 任务复用专用事件循环线程，避免 asyncio run-loop 混用导致的 “Future attached to a different loop” 异常。
 - **部署注意事项** – Docker Compose 已为 worker 注入新的内部推理环境变量；重启前确认 `.env` 中的 token、URL 一致，确保健康检查正常。
+- **任务耗时追踪** – `OcrTask` 记录 `queued_at`/`started_at`/`finished_at`/`duration_ms`，同步图片与 PDF 任务都会回写耗时并在前端显示。新增 Alembic 迁移位于 `backend/migrations/versions/`，通过 `docker compose exec backend-direct alembic upgrade head` 应用。

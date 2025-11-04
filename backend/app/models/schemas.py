@@ -27,6 +27,9 @@ class ImageOCRResponse(BaseModel):
     raw_text: str
     boxes: List[BoundingBox] = Field(default_factory=list)
     image_dims: Optional[ImageDimensions] = None
+    task_id: Optional[UUID] = Field(default=None, description="对应的任务 ID（仅同步调用）")
+    timing: Optional["TaskTiming"] = None
+    duration_ms: Optional[int] = Field(default=None, description="任务耗时（毫秒）")
 
 
 class TaskCreateResponse(BaseModel):
@@ -56,6 +59,13 @@ class TaskProgress(BaseModel):
     message: Optional[str] = Field(None, description="进度说明")
 
 
+class TaskTiming(BaseModel):
+    queued_at: Optional[datetime] = Field(default=None, description="进入队列时间")
+    started_at: Optional[datetime] = Field(default=None, description="开始执行时间")
+    finished_at: Optional[datetime] = Field(default=None, description="完成时间")
+    duration_ms: Optional[int] = Field(default=None, description="执行耗时（毫秒）")
+
+
 class TaskStatusResponse(BaseModel):
     task_id: UUID
     status: TaskStatus
@@ -65,6 +75,7 @@ class TaskStatusResponse(BaseModel):
     error_message: Optional[str] = None
     result: Optional[TaskResult] = None
     progress: Optional[TaskProgress] = None
+    timing: Optional[TaskTiming] = None
 
 
 class HealthResponse(BaseModel):
@@ -85,3 +96,6 @@ class InternalInferRequest(BaseModel):
 
 class InternalInferResponse(BaseModel):
     text: str = Field(..., description="模型原始输出文本")
+
+
+ImageOCRResponse.model_rebuild()

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import uuid
-from pathlib import Path
 import base64
 import io
+import os
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
@@ -22,20 +23,21 @@ from ..models.schemas import (
     HealthResponse,
     ImageDimensions,
     ImageOCRResponse,
-    PdfPageResult,
-    TaskProgress,
     InternalInferRequest,
     InternalInferResponse,
+    PdfPageResult,
     TaskCreateResponse,
+    TaskProgress,
     TaskResult,
     TaskStatusResponse,
+    TaskTiming,
 )
 from ..services.grounding_parser import GroundingParser
 from ..services.prompt_builder import PromptBuilder
 from ..services.storage import StorageManager
+from ..services.vllm_direct_engine import VLLMDirectEngine
 from ..tasks.pdf import process_pdf_task
 from ..utils.image_utils import ImageUtils
-from ..services.vllm_direct_engine import VLLMDirectEngine
 
 
 router = APIRouter()
@@ -73,12 +75,30 @@ async def health() -> HealthResponse:
 @router.post("/api/ocr/image", response_model=ImageOCRResponse)
 async def ocr_image(
     image: UploadFile = File(..., description="待识别图像"),
+    session: AsyncSession = Depends(get_db_session),
     inference_service: VLLMDirectEngine = Depends(get_inference_service),
 ) -> ImageOCRResponse:
     tmp_img = None
+    task: OcrTask | None = None
+
     try:
         tmp_img = await ImageUtils.save_upload_file(image)
         prompt = PromptBuilder.image_prompt()
+
+        task_id = uuid.uuid4()
+        task = OcrTask(
+            id=task_id,
+            task_type=TaskType.IMAGE,
+            input_path=tmp_img,
+            queued_at=datetime.now(timezone.utc),
+        )
+        session.add(task)
+        await session.flush()
+
+        task.mark_running()
+        await session.commit()
+        await session.refresh(task)
+
         raw_text = await inference_service.infer(
             prompt=prompt,
             image_path=tmp_img,
@@ -89,11 +109,25 @@ async def ocr_image(
 
         orig_w, orig_h = ImageUtils.get_image_dimensions(tmp_img)
 
-        boxes = []
+        boxes: list[dict[str, Any]] = []
         if GroundingParser.has_grounding_tags(raw_text) and orig_w and orig_h:
             boxes = GroundingParser.parse_detections(raw_text, orig_w, orig_h)
 
         cleaned_text = GroundingParser.clean_grounding_text(raw_text) or raw_text
+
+        payload: dict[str, Any] = {
+            "text": cleaned_text,
+            "raw_text": raw_text,
+            "boxes": boxes,
+        }
+        if orig_w and orig_h:
+            payload["image_dims"] = {"w": orig_w, "h": orig_h}
+
+        task.mark_succeeded(payload, output_dir=None)
+        await session.commit()
+        await session.refresh(task)
+
+        timing = _build_task_timing(task)
 
         return ImageOCRResponse(
             success=True,
@@ -101,9 +135,17 @@ async def ocr_image(
             raw_text=raw_text,
             boxes=[BoundingBox(**box) for box in boxes],
             image_dims=ImageDimensions(w=orig_w, h=orig_h) if orig_w and orig_h else None,
+            task_id=task.id,
+            timing=timing,
+            duration_ms=task.duration_ms,
         )
 
     except Exception as exc:
+        if task is not None:
+            await session.rollback()
+            task.mark_failed(f"{type(exc).__name__}: {exc}")
+            session.add(task)
+            await session.commit()
         error_detail = f"{type(exc).__name__}: {exc}"
         raise HTTPException(status_code=500, detail=error_detail) from exc
 
@@ -176,6 +218,7 @@ async def enqueue_pdf_ocr(
         id=task_id,
         task_type=TaskType.PDF,
         input_path=str(input_path),
+        queued_at=datetime.now(timezone.utc),
     )
     session.add(task)
     await session.commit()
@@ -207,6 +250,7 @@ async def get_task_status(
         error_message=task.error_message,
         result=result_model,
         progress=progress_model,
+        timing=_build_task_timing(task),
     )
 
 
@@ -280,6 +324,22 @@ def _build_task_result(task: OcrTask, payload: dict[str, Any]) -> Optional[TaskR
         archive_url=archive_url,
         image_urls=image_urls,
         pages=pages,
+    )
+
+
+def _build_task_timing(task: OcrTask) -> Optional[TaskTiming]:
+    if task is None:
+        return None
+
+    has_data = any([task.queued_at, task.started_at, task.finished_at, task.duration_ms is not None])
+    if not has_data:
+        return None
+
+    return TaskTiming(
+        queued_at=task.queued_at,
+        started_at=task.started_at,
+        finished_at=task.finished_at,
+        duration_ms=task.duration_ms,
     )
 
 

@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Download, Loader2, Search } from 'lucide-rea
 import { TaskStatusResponse, ocrClient } from '../api/client'
 import { isProcessing, statusBadgeStyles } from '../utils/taskStatus'
 import { buildDownloadUrl } from '../utils/url'
+import { formatDuration, formatTimestamp } from '../utils/time'
 
 const TaskLookupPanel = () => {
   const [taskIdInput, setTaskIdInput] = useState('')
@@ -67,6 +68,10 @@ const TaskLookupPanel = () => {
     return progress.total > 0 || progress.percent > 0 || Boolean(progress.message)
   }, [progress])
   const archiveUrl = buildDownloadUrl(status?.result?.archive_url ?? undefined)
+  const timing = status?.timing ?? null
+  const durationLabel = formatDuration(timing?.duration_ms ?? null)
+  const startedAt = formatTimestamp(timing?.started_at ?? null)
+  const finishedAt = formatTimestamp(timing?.finished_at ?? null)
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -150,6 +155,23 @@ const TaskLookupPanel = () => {
                 />
               </div>
               {progress.message && <p className="text-xs text-slate-500">{progress.message}</p>}
+            </div>
+          )}
+
+          {timing && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600 shadow-inner">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">耗时</span>
+                <p className="mt-1 text-base font-semibold text-slate-900">{durationLabel}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+                <span className="font-semibold uppercase tracking-wider text-slate-400">开始时间</span>
+                <p className="mt-1 text-sm text-slate-700">{startedAt ?? '—'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+                <span className="font-semibold uppercase tracking-wider text-slate-400">完成时间</span>
+                <p className="mt-1 text-sm text-slate-700">{finishedAt ?? '—'}</p>
+              </div>
             </div>
           )}
 

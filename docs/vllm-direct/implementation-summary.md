@@ -14,6 +14,12 @@
 - **前端体验重构**：App 拆分为独立组件，PDF 任务改为 1 s 自动轮询且默认仅露出 ZIP 下载，新增任务 ID 查询面板统一查看进度。
 - **Worker 稳定性**：PDF Celery 任务运行在专用事件循环线程，规避 asyncpg Future 附着到错误 loop 的异常。
 
+## 2025-12 更新
+
+- **任务耗时追踪**：`OcrTask` 模型新增 `queued_at` / `started_at` / `finished_at` / `duration_ms` 字段，图片与 PDF 任务都会回写全链路耗时。
+- **API & 前端展示**：`TaskStatusResponse.timing` 与 `ImageOCRResponse.duration_ms` 暴露耗时信息，前端三个面板统一展示排队、开始与完成时间。
+- **数据库迁移**：首个 Alembic 迁移存放于 `backend/migrations/versions/`，在 Docker 环境下执行 `docker compose exec backend-direct alembic upgrade head` 以应用结构更新。
+
 ## 架构变化
 
 ### 之前（双容器架构）

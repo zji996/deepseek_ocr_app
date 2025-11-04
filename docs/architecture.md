@@ -41,7 +41,7 @@
 - `backend/app/api/routes.py`
   - 公共端点：`/api/ocr/image`、`/api/ocr/pdf`、`/api/tasks/{task_id}`。
   - 内部端点：`/internal/infer`，供 Celery worker 复用 FastAPI 进程内的 `AsyncLLMEngine`。
-  - 统一返回 `TaskStatusResponse`；`result` 字段包含 Markdown/JSON/ZIP 下载地址，`progress` 提供实时进度。
+  - 统一返回 `TaskStatusResponse`；`result` 字段包含 Markdown/JSON/ZIP 下载地址，`progress` 提供实时进度，`timing` 则返回标准化的排队/启动/完成时间与耗时。
 
 ### 服务层
 - `vllm_direct_engine.py`：FastAPI 进程的 vLLM 封装，负责加载模型、接受推理请求。
@@ -55,7 +55,7 @@
 - 其它辅助模块：`prompt_builder.py`、`storage.py` 等。
 
 ### 数据层
-- ORM：`backend/app/db/models.py`，记录 `OcrTask`、状态机（pending/running/succeeded/failed）。
+- ORM：`backend/app/db/models.py`，记录 `OcrTask`、状态机（pending/running/succeeded/failed），并追踪 `queued_at`、`started_at`、`finished_at`、`duration_ms` 以便分析排队延迟与执行耗时。
 - 配置：`backend/app/config.py` 使用 `pydantic-settings` 暴露以下关键变量：
   - `WORKER_REMOTE_INFER_URL`、`INTERNAL_API_TOKEN` 用于 worker 与 API 同步推理。
   - `PDF_MAX_CONCURRENCY` 控制每个 worker 并发提交推理请求的数量。
@@ -81,7 +81,8 @@
 ### 图片 OCR
 1. 用户上传图片 → `/api/ocr/image`。
 2. FastAPI 使用 `VLLMDirectEngine.infer` 推理，`GroundingParser` 解析检测框。
-3. 响应包含 `text`、`raw_text`、`boxes`、`image_dims`，前端即时渲染。
+3. 过程中创建 `TaskType.IMAGE` 记录并回写开始/完成时间。
+4. 响应包含 `text`、`raw_text`、`boxes`、`image_dims`、`timing`，前端即时渲染并显示耗时。
 
 ### PDF OCR
 1. 上传 PDF → 存储到 `/data/ocr/{task_id}/input.pdf`，写入 `OcrTask` 记录，Celery 入队。
@@ -97,6 +98,7 @@
 4. 前端轮询 `/api/tasks/{task_id}`：
    - `status` 控制徽标（排队中/执行中/完成/失败）。
    - `progress.percent` 渲染条形图和提示语。
+   - `timing.duration_ms` 显示总耗时，`started_at`/`finished_at` 用于时间线。
    - `result.archive_url` 用于 ZIP 下载（默认展示），`markdown_url` 与 `image_urls` 可供其他调用方使用。
 
 ## 关键设计决策
@@ -138,5 +140,8 @@
   - 若 worker 报 `Forbidden`，检查 `INTERNAL_API_TOKEN`。
   - 若进度永远停留在 “任务已启动”，确认 worker 能访问 `/internal/infer`，并检查 PostgreSQL/Redis 连接。
   - Grounding 解析失败通常伴随模型输出格式变更，可开启日志排查 `sanitize_coords_text`。
+- 数据库迁移：
+  - 新增/修改表结构会同步提交到 `backend/migrations/versions/`。
+  - Docker 环境下执行 `docker compose exec backend-direct alembic upgrade head` 应用迁移；本地开发可使用 `alembic upgrade head`（需配置 `DATABASE_URL`）。
 
-最新修改日期：2025-11。
+最新修改日期：2025-12。

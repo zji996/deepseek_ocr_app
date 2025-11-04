@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Download, FileText, Loader2, Upload } from '
 import { TaskStatusResponse, ocrClient } from '../api/client'
 import { isProcessing, statusBadgeStyles } from '../utils/taskStatus'
 import { buildDownloadUrl } from '../utils/url'
+import { formatDuration, formatTimestamp } from '../utils/time'
 
 const PdfTaskPanel = () => {
   const [pdfTaskId, setPdfTaskId] = useState<string | null>(null)
@@ -76,6 +77,10 @@ const PdfTaskPanel = () => {
   }, [pdfProgress])
 
   const archiveUrl = buildDownloadUrl(pdfStatus?.result?.archive_url ?? undefined)
+  const pdfTiming = pdfStatus?.timing ?? null
+  const pdfDurationLabel = formatDuration(pdfTiming?.duration_ms ?? null)
+  const pdfStartedAt = formatTimestamp(pdfTiming?.started_at ?? null)
+  const pdfFinishedAt = formatTimestamp(pdfTiming?.finished_at ?? null)
 
   return (
     <section className="flex flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -182,6 +187,23 @@ const PdfTaskPanel = () => {
                 />
               </div>
               {pdfProgress.message && <p className="text-xs text-slate-500">{pdfProgress.message}</p>}
+            </div>
+          )}
+
+          {pdfTiming && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-indigo-200 bg-white p-3 text-sm text-slate-600 shadow-inner">
+                <span className="text-xs font-semibold uppercase tracking-wider text-indigo-500">耗时</span>
+                <p className="mt-1 text-base font-semibold text-slate-900">{pdfDurationLabel}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+                <span className="font-semibold uppercase tracking-wider text-slate-400">开始时间</span>
+                <p className="mt-1 text-sm text-slate-700">{pdfStartedAt ?? '—'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+                <span className="font-semibold uppercase tracking-wider text-slate-400">完成时间</span>
+                <p className="mt-1 text-sm text-slate-700">{pdfFinishedAt ?? '—'}</p>
+              </div>
             </div>
           )}
 

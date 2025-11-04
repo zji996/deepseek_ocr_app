@@ -30,6 +30,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system -r /tmp/requirements-vllm-direct.txt
 
 # 复制应用代码
+COPY alembic.ini ./alembic.ini
+COPY migrations/ ./migrations/
 COPY app/ ./app/
 
 EXPOSE 8001

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useId, useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, FileText, ImageIcon, Loader2, Upload } from 'lucide-react'
 
 import { ImageOCRResponse, ocrClient } from '../api/client'
+import { formatDuration, formatTimestamp } from '../utils/time'
 
 type PreviewBox = {
   id: string
@@ -85,6 +86,10 @@ const ImageOcrPanel = () => {
 
   const previewBoxes = useMemo(() => buildPreviewBoxes(imageResult), [imageResult])
   const imageBoxes = useMemo(() => imageResult?.boxes ?? [], [imageResult])
+  const imageTiming = imageResult?.timing ?? null
+  const imageDurationLabel = formatDuration(imageResult?.duration_ms ?? imageTiming?.duration_ms ?? null)
+  const imageStartedAt = formatTimestamp(imageTiming?.started_at ?? null)
+  const imageFinishedAt = formatTimestamp(imageTiming?.finished_at ?? null)
 
   return (
     <section className="flex flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -161,6 +166,21 @@ const ImageOcrPanel = () => {
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
               成功
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-emerald-200 bg-white p-3 text-sm text-slate-600 shadow-inner">
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500">耗时</span>
+              <p className="mt-1 text-base font-semibold text-slate-900">{imageDurationLabel}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+              <span className="font-semibold uppercase tracking-wider text-slate-400">开始时间</span>
+              <p className="mt-1 text-sm text-slate-700">{imageStartedAt ?? '—'}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 shadow-inner">
+              <span className="font-semibold uppercase tracking-wider text-slate-400">完成时间</span>
+              <p className="mt-1 text-sm text-slate-700">{imageFinishedAt ?? '—'}</p>
             </div>
           </div>
 
